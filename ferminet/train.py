@@ -553,15 +553,26 @@ def train(cfg: ml_collections.ConfigDict, writer_manager=None):
       }
     else:
       core_electrons = {}
+
     # create electron state (position and spin)
-    pos, spins = init_electrons(
+    if len(nspins) > 2:
+      # TODO (GC): This can certainly be more sophisticated.
+      logging.info('More than 2 spin species, assuming multi-component '
+                   'calculation and initializing naively.')
+      pos = jax.random.normal(
         subkey,
-        cfg.system.molecule,
-        cfg.system.electrons,
-        batch_size=total_host_batch_size,
-        init_width=cfg.mcmc.init_width,
-        core_electrons=core_electrons,
-    )
+        (host_batch_size, 3*sum(nspins))
+      )*cfg.mcmc.init_width
+      spins = jnp.empty(pos.shape)
+    else:
+      pos, spins = init_electrons(
+          subkey,
+          cfg.system.molecule,
+          cfg.system.electrons,
+          batch_size=total_host_batch_size,
+          init_width=cfg.mcmc.init_width,
+          core_electrons=core_electrons,
+      )
     # For excited states, each device has a batch of walkers, where each walker
     # is nstates * nelectrons. The vmap over nstates is handled in the function
     # created in make_total_ansatz
