@@ -668,6 +668,8 @@ def train(cfg: ml_collections.ConfigDict, writer_manager=None):
   mcmc_step = mcmc.make_mcmc_step(
       batch_network,
       device_batch_size,
+      nspins,
+      separate_spin_moves=cfg.mcmc.separate_spin_moves,
       steps=cfg.mcmc.steps,
       atoms=atoms_to_mcmc,
       blocks=cfg.mcmc.blocks * num_states,
@@ -793,12 +795,18 @@ def train(cfg: ml_collections.ConfigDict, writer_manager=None):
   else:
     raise ValueError(f'Unknown optimizer: {optimizer}')
 
-  if mcmc_width_ckpt is not None:
-    mcmc_width = kfac_jax.utils.replicate_all_local_devices(mcmc_width_ckpt[0])
+  if cfg.mcmc.separate_spin_moves:
+    width_arr = jnp.ones((len(cfg.system.electrons),))*cfg.mcmc.move_width
+    mcmc_width = kfac_jax.utils.replicate_all_local_devices(width_arr)
+    pmoves = np.zeros((len(cfg.system.electrons), cfg.mcmc.adapt_frequency))
   else:
     mcmc_width = kfac_jax.utils.replicate_all_local_devices(
         jnp.asarray(cfg.mcmc.move_width))
-  pmoves = np.zeros(cfg.mcmc.adapt_frequency)
+    pmoves = np.zeros(cfg.mcmc.adapt_frequency)
+
+  # Avoid overwriting ckptd mcmc width
+  if mcmc_width_ckpt is not None:
+    mcmc_width = kfac_jax.utils.replicate_all_local_devices(mcmc_width_ckpt[0])
 
   if t_init == 0:
     logging.info('Burning in MCMC chain for %d steps', cfg.mcmc.burn_in)
@@ -872,7 +880,14 @@ def train(cfg: ml_collections.ConfigDict, writer_manager=None):
 
       # Update MCMC move width
       mcmc_width, pmoves = mcmc.update_mcmc_width(
-          t, mcmc_width, cfg.mcmc.adapt_frequency, pmove, pmoves)
+          t, 
+          mcmc_width, 
+          cfg.mcmc.adapt_frequency, 
+          pmove, 
+          pmoves, 
+          separate_spin_moves=cfg.mcmc.separate_spin_moves
+      )
+      pmove = jnp.mean(pmove) if cfg.mcmc.separate_spin_moves else pmove      
 
       if cfg.debug.check_nan:
         tree = {'params': params, 'loss': loss}

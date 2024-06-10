@@ -198,6 +198,9 @@ def default() -> ml_collections.ConfigDict:
           # mean of the distance to the nuclei.
           'scale_by_nuclear_distance': False,
           'blocks': 1,  # Number of blocks to split the MCMC sampling into
+          # If true, define separate widths for the proposal distribution per
+          # spin species during MCMC sampling
+          'separate_spin_moves': False
       },
       'network': {
           'network_type': 'ferminet',  # One of 'ferminet' or 'psiformer'.
