@@ -18,11 +18,11 @@ def potential_energy(r_af, r_ff, atoms, charges, nspins, fermion_charges):
     atoms: Shape (natoms, ndim). Positions of the atoms.
     charges: Shape (natoms). Nuclear charges of the atoms.
     nspins: Number of particles of each spin species.
-    fermion_charges: Shape (nspecies, ). Charge of each spin species.
+    fermion_charges: Shape (len(nspins), ). Charge of each spin species.
   """
   fc = jnp.concatenate(
     [q*jnp.ones((n,)) for n, q in zip(nspins, fermion_charges)]
-  )  # iterable of fermion charges
+  )  # charges indexed by particle index
   v_ff = jnp.sum(jnp.triu(fc[None, ...]*fc[..., None] / r_ff[..., 0], k=1))
   v_af = jnp.sum(charges[None, ...]*fc[..., None] / r_af[..., 0])  # pylint: disable=invalid-unary-operand-type
   r_aa = jnp.linalg.norm(atoms[None, ...] - atoms[:, None], axis=-1)
@@ -54,6 +54,8 @@ def local_energy(
     laplacian_method: Laplacian calculation method. One of:
       'default': take jvp(grad), looping over inputs
       'folx': use Microsoft's implementation of forward laplacian
+    fermion_charges: Shape (len(nspins), ). Charge of each spin species. Indices
+      correspond to indices of `nspins`.
     states: unused, excited states not implemented
     pp_type: unused, pseudopotentials not implemented
     pp_symbols: unused, pseudopotentials not implemented
